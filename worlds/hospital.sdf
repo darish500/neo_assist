@@ -1,0 +1,544 @@
+<?xml version="1.0"?>
+<!--
+  NeoAssist Hospital World
+  ========================
+  Top-view layout (each cell ~ 2 m x 2 m):
+
+  Y=+8 ┌──────────────────────────────────────────┐
+       │        ENTRANCE LOBBY  |   RECEPTION      │
+  Y=+2 ├─────────── DOOR ───────┼──── DOOR ────────┤
+       │     MAIN CORRIDOR  (robot drives here)    │
+  Y=-2 ├─────────── DOOR ───────┼──── DOOR ────────┤
+       │   WARD A (west)        │   WARD B (east)  │
+  Y=-5 ├────────────────────────┼──────────────────┤
+       │   LABORATORY (west)    │   TOILETS (east) │
+  Y=-8 └──────────────────────────────────────────┘
+      X=-10                   X=0                X=+10
+-->
+<sdf version="1.8">
+  <world name="hospital">
+
+    <!-- Physics: 1 ms step, real-time -->
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Required Gazebo Harmonic plugins -->
+    <plugin filename="gz-sim-physics-system"       name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"       name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-contact-system"       name="gz::sim::systems::Contact"/>
+
+    <!-- Bright hospital overhead lighting -->
+    <light name="overhead_main" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.95 0.95 0.98 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>-0.2 0.2 -1</direction>
+      <attenuation><range>1000</range><constant>0.9</constant>
+        <linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+    </light>
+    <light name="fill" type="directional">
+      <pose>0 0 8 0 0 0</pose>
+      <diffuse>0.5 0.5 0.55 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <direction>0.3 -0.2 -1</direction>
+      <cast_shadows>false</cast_shadows>
+    </light>
+
+    <!-- ══════════════════════════════════════════
+         FLOOR  — light grey clinical tile
+    ══════════════════════════════════════════ -->
+    <model name="floor">
+      <static>true</static>
+      <link name="link">
+        <collision name="c">
+          <geometry><plane><normal>0 0 1</normal><size>30 24</size></plane></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><plane><normal>0 0 1</normal><size>30 24</size></plane></geometry>
+          <material>
+            <ambient>0.83 0.83 0.81 1</ambient>
+            <diffuse>0.83 0.83 0.81 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ══════════════════════════════════════════
+         OUTER PERIMETER WALLS  (0.2 m thick, 3 m tall, white)
+    ══════════════════════════════════════════ -->
+
+    <model name="wall_north"><static>true</static><pose>0 8 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>20.4 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>20.4 0.2 3.0</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <model name="wall_south"><static>true</static><pose>0 -8 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>20.4 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>20.4 0.2 3.0</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <model name="wall_west"><static>true</static><pose>-10 0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 16.4 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.2 16.4 3.0</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <model name="wall_east"><static>true</static><pose>10 0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 16.4 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.2 16.4 3.0</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         INTERIOR WALLS WITH DOORWAYS
+         Corridor runs Y=-2 to Y=+2.
+         Each interior wall has a 1.6 m doorway gap.
+    ══════════════════════════════════════════ -->
+
+    <!-- North corridor wall (Y=+2) — west segment -->
+    <model name="iwall_n_w1"><static>true</static><pose>-6.8 2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>5.2 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.2 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <!-- doorway gap x=-4.2 to x=-2.6 (west door) -->
+    <model name="iwall_n_w2"><static>true</static><pose>-1.1 2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>2.4 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>2.4 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <!-- doorway gap x=+0.2 to x=+1.8 (east door) -->
+    <model name="iwall_n_e1"><static>true</static><pose>3.4 2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>3.6 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>3.6 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <model name="iwall_n_e2"><static>true</static><pose>8.2 2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>3.4 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>3.4 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <!-- South corridor wall (Y=-2) — same doorway pattern -->
+    <model name="iwall_s_w1"><static>true</static><pose>-6.8 -2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>5.2 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.2 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <model name="iwall_s_w2"><static>true</static><pose>-1.1 -2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>2.4 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>2.4 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <model name="iwall_s_e1"><static>true</static><pose>3.4 -2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>3.6 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>3.6 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <model name="iwall_s_e2"><static>true</static><pose>8.2 -2.0 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>3.4 0.2 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>3.4 0.2 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <!-- Centre vertical wall (splits west/east rooms) -->
+    <!-- North half (lobby | reception) — gap for corridor opening -->
+    <model name="wall_centre_n"><static>true</static><pose>0 5.5 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 4.8 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.2 4.8 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <!-- South half (lab | toilets) — gap for corridor opening -->
+    <model name="wall_centre_s"><static>true</static><pose>0 -5.5 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 4.8 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.2 4.8 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <!-- Ward divider (Ward A | Ward B) — partial so robot can see both -->
+    <model name="wall_ward_div"><static>true</static><pose>0 -3.5 1.5 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.2 2.8 3.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.2 2.8 3.0</size></box></geometry>
+      <material><ambient>0.91 0.91 0.91 1</ambient><diffuse>0.91 0.91 0.91 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         ENTRANCE LOBBY (X=-10..0, Y=+2..+8)
+         Waiting area with chairs and info sign
+    ══════════════════════════════════════════ -->
+
+    <!-- Reception counter / information desk -->
+    <model name="info_counter"><static>true</static><pose>-5.0 6.5 0.45 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>3.5 0.6 0.9</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>3.5 0.6 0.9</size></box></geometry>
+      <material><ambient>0.55 0.40 0.28 1</ambient><diffuse>0.55 0.40 0.28 1</diffuse></material></visual></link></model>
+
+    <!-- Waiting chair A -->
+    <model name="wait_chair_a"><static>true</static><pose>-7.5 4.0 0.22 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.5 0.5 0.44</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.5 0.5 0.44</size></box></geometry>
+      <material><ambient>0.12 0.35 0.62 1</ambient><diffuse>0.12 0.35 0.62 1</diffuse></material></visual></link></model>
+
+    <!-- Waiting chair B -->
+    <model name="wait_chair_b"><static>true</static><pose>-6.5 4.0 0.22 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.5 0.5 0.44</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.5 0.5 0.44</size></box></geometry>
+      <material><ambient>0.12 0.35 0.62 1</ambient><diffuse>0.12 0.35 0.62 1</diffuse></material></visual></link></model>
+
+    <!-- Waiting chair C -->
+    <model name="wait_chair_c"><static>true</static><pose>-5.5 4.0 0.22 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.5 0.5 0.44</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.5 0.5 0.44</size></box></geometry>
+      <material><ambient>0.12 0.35 0.62 1</ambient><diffuse>0.12 0.35 0.62 1</diffuse></material></visual></link></model>
+
+    <!-- Small table between chairs -->
+    <model name="wait_table"><static>true</static><pose>-6.5 4.8 0.35 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>1.2 0.5 0.70</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>1.2 0.5 0.70</size></box></geometry>
+      <material><ambient>0.80 0.76 0.68 1</ambient><diffuse>0.80 0.76 0.68 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         RECEPTION (X=0..+10, Y=+2..+8)
+         Nurse / admin station
+    ══════════════════════════════════════════ -->
+
+    <!-- Main reception desk (L-shape: two boxes) -->
+    <model name="reception_desk_main"><static>true</static><pose>5.5 6.2 0.45 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>3.8 0.6 0.9</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>3.8 0.6 0.9</size></box></geometry>
+      <material><ambient>0.55 0.40 0.28 1</ambient><diffuse>0.55 0.40 0.28 1</diffuse></material></visual></link></model>
+
+    <model name="reception_desk_side"><static>true</static><pose>7.3 5.0 0.45 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.6 2.0 0.9</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.6 2.0 0.9</size></box></geometry>
+      <material><ambient>0.55 0.40 0.28 1</ambient><diffuse>0.55 0.40 0.28 1</diffuse></material></visual></link></model>
+
+    <!-- Monitor on reception desk -->
+    <model name="reception_monitor"><static>true</static><pose>4.8 5.95 1.1 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.4 0.05 0.3</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.4 0.05 0.3</size></box></geometry>
+      <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material></visual></link></model>
+
+    <!-- Monitor screen glow (blue) -->
+    <model name="reception_screen"><static>true</static><pose>4.8 5.92 1.1 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.36 0.01 0.26</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.36 0.01 0.26</size></box></geometry>
+      <material><ambient>0.2 0.4 0.9 1</ambient><diffuse>0.2 0.4 0.9 1</diffuse></material></visual></link></model>
+
+    <!-- Reception chair (nurse seat) -->
+    <model name="nurse_chair"><static>true</static><pose>5.0 6.8 0.22 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.5 0.5 0.44</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.5 0.5 0.44</size></box></geometry>
+      <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material></visual></link></model>
+
+    <!-- Filing cabinet -->
+    <model name="filing_cabinet"><static>true</static><pose>8.8 4.0 0.6 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.5 0.6 1.2</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.5 0.6 1.2</size></box></geometry>
+      <material><ambient>0.55 0.58 0.60 1</ambient><diffuse>0.55 0.58 0.60 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         CORRIDOR (Y=-2..+2)
+         Wide hallway — trolleys and wheelchair
+    ══════════════════════════════════════════ -->
+
+    <!-- Medical trolley west -->
+    <model name="trolley_west"><static>true</static><pose>-4.5 0.0 0.4 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.45 0.75 0.80</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.45 0.75 0.80</size></box></geometry>
+      <material><ambient>0.78 0.78 0.78 1</ambient><diffuse>0.78 0.78 0.78 1</diffuse></material></visual></link></model>
+
+    <!-- Tray on trolley west -->
+    <model name="trolley_west_tray"><static>true</static><pose>-4.5 0.0 0.85 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.40 0.70 0.05</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.40 0.70 0.05</size></box></geometry>
+      <material><ambient>0.90 0.90 0.90 1</ambient><diffuse>0.90 0.90 0.90 1</diffuse></material></visual></link></model>
+
+    <!-- Medical trolley east -->
+    <model name="trolley_east"><static>true</static><pose>4.5 0.5 0.4 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.45 0.75 0.80</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.45 0.75 0.80</size></box></geometry>
+      <material><ambient>0.78 0.78 0.78 1</ambient><diffuse>0.78 0.78 0.78 1</diffuse></material></visual></link></model>
+
+    <!-- Wheelchair in corridor -->
+    <model name="wheelchair"><static>true</static><pose>0.5 -0.8 0.25 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.55 0.65 0.50</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.55 0.65 0.50</size></box></geometry>
+      <material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         WARD A  (X=-10..0, Y=-8..-2)
+         Two beds with patients, IV drips, monitors
+    ══════════════════════════════════════════ -->
+
+    <!-- Bed frame A1 -->
+    <model name="bed_a1_frame"><static>true</static><pose>-7.5 -4.5 0.3 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.95 2.1 0.60</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.95 2.1 0.60</size></box></geometry>
+      <material><ambient>0.88 0.88 0.88 1</ambient><diffuse>0.88 0.88 0.88 1</diffuse></material></visual></link></model>
+
+    <!-- Mattress A1 -->
+    <model name="bed_a1_mattress"><static>true</static><pose>-7.5 -4.5 0.63 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.88 2.0 0.12</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.88 2.0 0.12</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <!-- Patient A1 (lying down — simplified as a body shape) -->
+    <model name="patient_a1_body"><static>true</static><pose>-7.5 -4.5 0.82 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.40 1.65 0.20</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.40 1.65 0.20</size></box></geometry>
+      <material><ambient>0.88 0.72 0.60 1</ambient><diffuse>0.88 0.72 0.60 1</diffuse></material></visual></link></model>
+
+    <!-- Patient blanket A1 -->
+    <model name="patient_a1_blanket"><static>true</static><pose>-7.5 -4.8 0.80 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.82 1.40 0.08</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.82 1.40 0.08</size></box></geometry>
+      <material><ambient>0.20 0.45 0.75 1</ambient><diffuse>0.20 0.45 0.75 1</diffuse></material></visual></link></model>
+
+    <!-- IV drip stand A1 -->
+    <model name="iv_stand_a1"><static>true</static><pose>-7.0 -3.6 0.9 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.06 0.06 1.8</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.06 0.06 1.8</size></box></geometry>
+      <material><ambient>0.72 0.72 0.72 1</ambient><diffuse>0.72 0.72 0.72 1</diffuse></material></visual></link></model>
+
+    <!-- IV bag A1 -->
+    <model name="iv_bag_a1"><static>true</static><pose>-7.0 -3.6 1.82 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.14 0.08 0.22</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.14 0.08 0.22</size></box></geometry>
+      <material><ambient>0.70 0.90 0.70 1</ambient><diffuse>0.70 0.90 0.70 1</diffuse></material></visual></link></model>
+
+    <!-- Patient monitor A1 -->
+    <model name="monitor_a1"><static>true</static><pose>-8.2 -3.7 1.05 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.35 0.08 0.28</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.35 0.08 0.28</size></box></geometry>
+      <material><ambient>0.10 0.10 0.10 1</ambient><diffuse>0.10 0.10 0.10 1</diffuse></material></visual></link></model>
+
+    <!-- Bed frame A2 -->
+    <model name="bed_a2_frame"><static>true</static><pose>-4.5 -4.5 0.3 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.95 2.1 0.60</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.95 2.1 0.60</size></box></geometry>
+      <material><ambient>0.88 0.88 0.88 1</ambient><diffuse>0.88 0.88 0.88 1</diffuse></material></visual></link></model>
+
+    <model name="bed_a2_mattress"><static>true</static><pose>-4.5 -4.5 0.63 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.88 2.0 0.12</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.88 2.0 0.12</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <model name="patient_a2_body"><static>true</static><pose>-4.5 -4.5 0.82 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.40 1.65 0.20</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.40 1.65 0.20</size></box></geometry>
+      <material><ambient>0.75 0.60 0.50 1</ambient><diffuse>0.75 0.60 0.50 1</diffuse></material></visual></link></model>
+
+    <model name="patient_a2_blanket"><static>true</static><pose>-4.5 -4.8 0.80 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.82 1.40 0.08</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.82 1.40 0.08</size></box></geometry>
+      <material><ambient>0.75 0.20 0.20 1</ambient><diffuse>0.75 0.20 0.20 1</diffuse></material></visual></link></model>
+
+    <model name="iv_stand_a2"><static>true</static><pose>-4.0 -3.6 0.9 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.06 0.06 1.8</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.06 0.06 1.8</size></box></geometry>
+      <material><ambient>0.72 0.72 0.72 1</ambient><diffuse>0.72 0.72 0.72 1</diffuse></material></visual></link></model>
+
+    <model name="iv_bag_a2"><static>true</static><pose>-4.0 -3.6 1.82 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.14 0.08 0.22</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.14 0.08 0.22</size></box></geometry>
+      <material><ambient>0.90 0.90 0.60 1</ambient><diffuse>0.90 0.90 0.60 1</diffuse></material></visual></link></model>
+
+    <!-- Bedside table A2 -->
+    <model name="bedside_a2"><static>true</static><pose>-3.7 -5.4 0.35 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.40 0.40 0.70</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.40 0.40 0.70</size></box></geometry>
+      <material><ambient>0.75 0.60 0.42 1</ambient><diffuse>0.75 0.60 0.42 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         WARD B  (X=0..+10, Y=-8..-2)
+         Same as Ward A — mirrored east side
+    ══════════════════════════════════════════ -->
+
+    <model name="bed_b1_frame"><static>true</static><pose>4.5 -4.5 0.3 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.95 2.1 0.60</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.95 2.1 0.60</size></box></geometry>
+      <material><ambient>0.88 0.88 0.88 1</ambient><diffuse>0.88 0.88 0.88 1</diffuse></material></visual></link></model>
+
+    <model name="bed_b1_mattress"><static>true</static><pose>4.5 -4.5 0.63 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.88 2.0 0.12</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.88 2.0 0.12</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <model name="patient_b1_body"><static>true</static><pose>4.5 -4.5 0.82 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.40 1.65 0.20</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.40 1.65 0.20</size></box></geometry>
+      <material><ambient>0.65 0.50 0.42 1</ambient><diffuse>0.65 0.50 0.42 1</diffuse></material></visual></link></model>
+
+    <model name="patient_b1_blanket"><static>true</static><pose>4.5 -4.8 0.80 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.82 1.40 0.08</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.82 1.40 0.08</size></box></geometry>
+      <material><ambient>0.20 0.60 0.40 1</ambient><diffuse>0.20 0.60 0.40 1</diffuse></material></visual></link></model>
+
+    <model name="iv_stand_b1"><static>true</static><pose>5.1 -3.6 0.9 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.06 0.06 1.8</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.06 0.06 1.8</size></box></geometry>
+      <material><ambient>0.72 0.72 0.72 1</ambient><diffuse>0.72 0.72 0.72 1</diffuse></material></visual></link></model>
+
+    <model name="iv_bag_b1"><static>true</static><pose>5.1 -3.6 1.82 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.14 0.08 0.22</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.14 0.08 0.22</size></box></geometry>
+      <material><ambient>0.70 0.85 0.95 1</ambient><diffuse>0.70 0.85 0.95 1</diffuse></material></visual></link></model>
+
+    <model name="bed_b2_frame"><static>true</static><pose>7.5 -4.5 0.3 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.95 2.1 0.60</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.95 2.1 0.60</size></box></geometry>
+      <material><ambient>0.88 0.88 0.88 1</ambient><diffuse>0.88 0.88 0.88 1</diffuse></material></visual></link></model>
+
+    <model name="bed_b2_mattress"><static>true</static><pose>7.5 -4.5 0.63 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.88 2.0 0.12</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.88 2.0 0.12</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <model name="patient_b2_body"><static>true</static><pose>7.5 -4.5 0.82 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.40 1.65 0.20</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.40 1.65 0.20</size></box></geometry>
+      <material><ambient>0.88 0.72 0.60 1</ambient><diffuse>0.88 0.72 0.60 1</diffuse></material></visual></link></model>
+
+    <model name="patient_b2_blanket"><static>true</static><pose>7.5 -4.8 0.80 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.82 1.40 0.08</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.82 1.40 0.08</size></box></geometry>
+      <material><ambient>0.55 0.20 0.55 1</ambient><diffuse>0.55 0.20 0.55 1</diffuse></material></visual></link></model>
+
+    <model name="monitor_b2"><static>true</static><pose>8.5 -3.7 1.05 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.35 0.08 0.28</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.35 0.08 0.28</size></box></geometry>
+      <material><ambient>0.10 0.10 0.10 1</ambient><diffuse>0.10 0.10 0.10 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         LABORATORY  (X=-10..0, Y=-8..-5)
+         Lab bench, microscope, centrifuge, shelves
+    ══════════════════════════════════════════ -->
+
+    <!-- Main lab bench along south wall -->
+    <model name="lab_bench_main"><static>true</static><pose>-5.5 -7.3 0.45 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>7.5 0.65 0.90</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>7.5 0.65 0.90</size></box></geometry>
+      <material><ambient>0.35 0.50 0.38 1</ambient><diffuse>0.35 0.50 0.38 1</diffuse></material></visual></link></model>
+
+    <!-- Bench top surface (lighter colour) -->
+    <model name="lab_bench_top"><static>true</static><pose>-5.5 -7.3 0.92 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>7.5 0.65 0.04</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>7.5 0.65 0.04</size></box></geometry>
+      <material><ambient>0.82 0.88 0.82 1</ambient><diffuse>0.82 0.88 0.82 1</diffuse></material></visual></link></model>
+
+    <!-- Microscope -->
+    <model name="microscope"><static>true</static><pose>-8.5 -7.0 1.10 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.18 0.22 0.35</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.18 0.22 0.35</size></box></geometry>
+      <material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material></visual></link></model>
+
+    <!-- Microscope eyepiece -->
+    <model name="microscope_eye"><static>true</static><pose>-8.5 -7.0 1.47 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.03</radius><length>0.12</length></cylinder></geometry></collision>
+      <visual name="v"><geometry><cylinder><radius>0.03</radius><length>0.12</length></cylinder></geometry>
+      <material><ambient>0.18 0.18 0.18 1</ambient><diffuse>0.18 0.18 0.18 1</diffuse></material></visual></link></model>
+
+    <!-- Centrifuge -->
+    <model name="centrifuge"><static>true</static><pose>-6.5 -7.0 1.10 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.16</radius><length>0.22</length></cylinder></geometry></collision>
+      <visual name="v"><geometry><cylinder><radius>0.16</radius><length>0.22</length></cylinder></geometry>
+      <material><ambient>0.85 0.85 0.85 1</ambient><diffuse>0.85 0.85 0.85 1</diffuse></material></visual></link></model>
+
+    <!-- Test tube rack -->
+    <model name="tube_rack"><static>true</static><pose>-4.8 -7.0 1.02 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.30 0.12 0.20</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.30 0.12 0.20</size></box></geometry>
+      <material><ambient>0.60 0.60 0.60 1</ambient><diffuse>0.60 0.60 0.60 1</diffuse></material></visual></link></model>
+
+    <!-- Chemical bottles (coloured) -->
+    <model name="bottle_blue"><static>true</static><pose>-3.5 -7.0 1.07 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.04</radius><length>0.18</length></cylinder></geometry></collision>
+      <visual name="v"><geometry><cylinder><radius>0.04</radius><length>0.18</length></cylinder></geometry>
+      <material><ambient>0.10 0.20 0.80 1</ambient><diffuse>0.10 0.20 0.80 1</diffuse></material></visual></link></model>
+
+    <model name="bottle_orange"><static>true</static><pose>-3.3 -7.0 1.07 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.04</radius><length>0.18</length></cylinder></geometry></collision>
+      <visual name="v"><geometry><cylinder><radius>0.04</radius><length>0.18</length></cylinder></geometry>
+      <material><ambient>0.90 0.50 0.05 1</ambient><diffuse>0.90 0.50 0.05 1</diffuse></material></visual></link></model>
+
+    <!-- Wall shelf in lab -->
+    <model name="lab_shelf"><static>true</static><pose>-9.0 -5.5 1.50 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>1.5 0.30 0.06</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>1.5 0.30 0.06</size></box></geometry>
+      <material><ambient>0.72 0.60 0.45 1</ambient><diffuse>0.72 0.60 0.45 1</diffuse></material></visual></link></model>
+
+    <!-- Lab stool -->
+    <model name="lab_stool"><static>true</static><pose>-6.5 -6.2 0.35 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.16</radius><length>0.70</length></cylinder></geometry></collision>
+      <visual name="v"><geometry><cylinder><radius>0.16</radius><length>0.70</length></cylinder></geometry>
+      <material><ambient>0.20 0.20 0.20 1</ambient><diffuse>0.20 0.20 0.20 1</diffuse></material></visual></link></model>
+
+    <!-- Biohazard bin (bright yellow) -->
+    <model name="bio_bin"><static>true</static><pose>-9.5 -6.5 0.3 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.18</radius><length>0.60</length></cylinder></geometry></collision>
+      <visual name="v"><geometry><cylinder><radius>0.18</radius><length>0.60</length></cylinder></geometry>
+      <material><ambient>0.95 0.88 0.05 1</ambient><diffuse>0.95 0.88 0.05 1</diffuse></material></visual></link></model>
+
+    <!-- ══════════════════════════════════════════
+         TOILET BLOCK  (X=0..+10, Y=-8..-5)
+         Two stalls + sinks
+    ══════════════════════════════════════════ -->
+
+    <!-- Partition between stalls -->
+    <model name="toilet_wall_1"><static>true</static><pose>4.0 -6.5 1.0 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.1 4.8 2.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.1 4.8 2.0</size></box></geometry>
+      <material><ambient>0.88 0.88 0.88 1</ambient><diffuse>0.88 0.88 0.88 1</diffuse></material></visual></link></model>
+
+    <!-- Stall divider -->
+    <model name="toilet_wall_2"><static>true</static><pose>6.5 -6.5 1.0 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.1 4.8 2.0</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.1 4.8 2.0</size></box></geometry>
+      <material><ambient>0.88 0.88 0.88 1</ambient><diffuse>0.88 0.88 0.88 1</diffuse></material></visual></link></model>
+
+    <!-- Toilet bowl stall 1 -->
+    <model name="toilet_bowl_1"><static>true</static><pose>2.2 -7.0 0.22 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.42 0.58 0.44</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.42 0.58 0.44</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <!-- Toilet bowl stall 2 -->
+    <model name="toilet_bowl_2"><static>true</static><pose>5.2 -7.0 0.22 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.42 0.58 0.44</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.42 0.58 0.44</size></box></geometry>
+      <material><ambient>0.96 0.96 0.96 1</ambient><diffuse>0.96 0.96 0.96 1</diffuse></material></visual></link></model>
+
+    <!-- Sink unit -->
+    <model name="sink_unit"><static>true</static><pose>8.0 -6.0 0.45 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>1.20 0.55 0.90</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>1.20 0.55 0.90</size></box></geometry>
+      <material><ambient>0.88 0.88 0.88 1</ambient><diffuse>0.88 0.88 0.88 1</diffuse></material></visual></link></model>
+
+    <!-- Sink basin (darker inset) -->
+    <model name="sink_basin"><static>true</static><pose>8.0 -5.76 0.92 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.45 0.06 0.18</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.45 0.06 0.18</size></box></geometry>
+      <material><ambient>0.60 0.75 0.85 1</ambient><diffuse>0.60 0.75 0.85 1</diffuse></material></visual></link></model>
+
+    <!-- Mirror above sink -->
+    <model name="toilet_mirror"><static>true</static><pose>8.0 -5.5 1.55 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.80 0.04 0.60</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.80 0.04 0.60</size></box></geometry>
+      <material><ambient>0.70 0.82 0.88 1</ambient><diffuse>0.70 0.82 0.88 1</diffuse></material></visual></link></model>
+
+    <!-- Soap dispenser -->
+    <model name="soap_dispenser"><static>true</static><pose>8.6 -5.76 1.05 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><box><size>0.10 0.06 0.18</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>0.10 0.06 0.18</size></box></geometry>
+      <material><ambient>0.20 0.55 0.30 1</ambient><diffuse>0.20 0.55 0.30 1</diffuse></material></visual></link></model>
+
+    <!-- Bin near sink -->
+    <model name="toilet_bin"><static>true</static><pose>9.2 -6.2 0.22 0 0 0</pose>
+      <link name="l"><collision name="c"><geometry><cylinder><radius>0.15</radius><length>0.44</length></cylinder></geometry></collision>
+      <visual name="v"><geometry><cylinder><radius>0.15</radius><length>0.44</length></cylinder></geometry>
+      <material><ambient>0.40 0.40 0.40 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material></visual></link></model>
+
+  </world>
+</sdf>
