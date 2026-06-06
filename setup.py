@@ -35,8 +35,8 @@ setup(
             glob('rviz/*.rviz')),
 
         # Include saved maps (Phase 2+)
-        (os.path.join('share', package_name, 'maps'),
-            glob('maps/*')),
+        # maps added dynamically after SLAM phase
+        # (os.path.join('share', package_name, 'maps'), glob('maps/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -47,8 +47,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # Python nodes — we add these in later phases
-            # 'node_name = neo_assist.module:main',
+            # TF frame fixer — bridges Gazebo frame names to ROS2 standard
+            'odom_tf_broadcaster = neo_assist.odom_tf_broadcaster:main',
+            'scan_frame_fixer = neo_assist.scan_frame_fixer:main',
         ],
     },
 )
