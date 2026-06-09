@@ -1,0 +1,92 @@
+
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Name: Grid
+      Reference Frame: <Fixed Frame>
+
+    - Class: rviz_default_plugins/Map
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Topic: /map
+        Value: /map
+      Alpha: 0.9
+      Color Scheme: map
+
+    - Class: rviz_default_plugins/RobotModel
+      Description Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Topic: /robot_description
+        Value: /robot_description
+      Enabled: true
+      Name: RobotModel
+      TF Prefix: ""
+
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: LaserScan
+      Size (m): 0.05
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Topic: /scan_fixed
+        Value: /scan_fixed
+      Color: 255; 80; 0
+      Style: Points
+      Transform Tolerance: 2
+
+    - Alpha: 1
+      Class: rviz_default_plugins/Odometry
+      Enabled: true
+      Name: Odometry
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Topic: /odom
+        Value: /odom
+      Keep: 200
+      Shape:
+        Arrow Shaft Length: 0.1
+        Arrow Shaft Radius: 0.02
+        Arrow Head Length: 0.05
+        Arrow Head Radius: 0.05
+        Color: 0; 200; 0
+        Alpha: 0.6
+
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 25
+      X: -8
+      Y: 0
+      Name: Current View

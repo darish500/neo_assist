@@ -35,6 +35,8 @@ setup(
             glob('rviz/*.rviz')),
 
         # Include saved maps (Phase 2+)
+        (os.path.join('share', package_name, 'config'),
+            glob('config/*.yaml')),
         # maps added dynamically after SLAM phase
         # (os.path.join('share', package_name, 'maps'), glob('maps/*')),
     ],
