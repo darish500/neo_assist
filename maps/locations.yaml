@@ -1,0 +1,55 @@
+pharmacy:
+  x: 0.953
+  y: 0.253
+  z: 0.0
+  yaw: 0.0
+  description: Pharmacy
+
+ward:
+  x: 6.997
+  y: -7.335
+  z: 0.0
+  yaw: 0.0
+  description: Ward
+
+patient_1:
+  x: 6.241
+  y: -7.590
+  z: 0.0
+  yaw: 0.0
+  description: Patient 1
+
+patient_2:
+  x: 6.758
+  y: -6.104
+  z: 0.0
+  yaw: 0.0
+  description: Patient 2
+
+toilet:
+  x: 8.898
+  y: -2.695
+  z: 0.0
+  yaw: 0.0
+  description: Toilet
+
+toilet_1:
+  x: 8.917
+  y: 2.438
+  z: 0.0
+  yaw: 0.0
+  description: Toilet 1
+
+toilet_2:
+  x: 12.764
+  y: 0.693
+  z: 0.0
+  yaw: 0.0
+  description: Toilet 2
+
+reception:
+  x: 10.449
+  y: -3.762
+  z: 0.0
+  yaw: 0.0
+  description: Receptionist

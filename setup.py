@@ -37,8 +37,9 @@ setup(
         # Include saved maps (Phase 2+)
         (os.path.join('share', package_name, 'config'),
             glob('config/*.yaml')),
-        # maps added dynamically after SLAM phase
-        # (os.path.join('share', package_name, 'maps'), glob('maps/*')),
+        # maps — saved from SLAM phase
+        (os.path.join('share', package_name, 'maps'),
+            glob('maps/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -52,6 +53,9 @@ setup(
             # TF frame fixer — bridges Gazebo frame names to ROS2 standard
             'odom_tf_broadcaster = neo_assist.odom_tf_broadcaster:main',
             'scan_frame_fixer = neo_assist.scan_frame_fixer:main',
+            'map_labeller = neo_assist.map_labeller:main',
+            'navigator = neo_assist.navigator:main',
+            'auto_mapper = neo_assist.auto_mapper:main',
         ],
     },
 )
