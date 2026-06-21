@@ -6,43 +6,70 @@ slam_toolbox:
     ceres_trust_strategy: LEVENBERG_MARQUARDT
     ceres_dogleg_type: TRADITIONAL_DOGLEG
     ceres_loss_function: None
-    odom_frame: odom
-    map_frame: map
-    base_frame: base_footprint
-    scan_topic: /scan_fixed
-    mode: mapping
+
+    odom_frame:  odom
+    map_frame:   map
+    base_frame:  base_footprint
+    scan_topic:  /scan_fixed        # ← CRITICAL: fixed QoS + frame topic, not /scan
+
+    mode:         mapping
     use_sim_time: true
     debug_logging: false
-    throttle_scans: 1
-    transform_publish_period: 0.02
-    map_update_interval: 2.0
-    resolution: 0.05
-    max_laser_range: 10.0
-    minimum_time_interval: 0.2
-    transform_timeout: 2.0
-    tf_buffer_duration: 60.0
-    stack_size_to_use: 40000000
-    enable_interactive_mode: true
-    use_scan_matching: true
-    use_scan_barycenter: true
-    minimum_travel_distance: 0.3
-    minimum_travel_heading: 0.3
+
+    # ── Scan handling ─────────────────────────────────────────────────
+    throttle_scans: 1               # use every scan
     scan_buffer_size: 10
     scan_buffer_maximum_scan_distance: 10.0
+
+    # ── Map update ────────────────────────────────────────────────────
+    # FIX: was 2.0s — too slow, misses walls when robot moves quickly.
+    # 1.0s gives cleaner map edges without hammering CPU.
+    map_update_interval: 1.0
+
+    resolution: 0.05
+    max_laser_range: 10.0
+
+    # ── TF / timing ──────────────────────────────────────────────────
+    # FIX: transform_timeout increased to 3.0 for Gazebo sim-time jitter.
+    # With 2.0s, SLAM sometimes drops scans when Gazebo runs slower than wall-clock.
+    transform_timeout: 3.0
+    transform_publish_period: 0.02  # 50 Hz TF = smooth RViz
+
+    tf_buffer_duration: 60.0
+    stack_size_to_use: 40000000
+
+    # ── Motion thresholds ─────────────────────────────────────────────
+    # FIX: reduce minimum_time_interval so SLAM processes scans faster.
+    # 0.2s = 5Hz scan processing (was fine, keeping it).
+    minimum_time_interval: 0.2
+    minimum_travel_distance: 0.2    # FIX: was 0.3 — update map with smaller moves
+    minimum_travel_heading: 0.2     # FIX: was 0.3 — same reason
+
+    # ── Scan matching ────────────────────────────────────────────────
+    use_scan_matching: true
+    use_scan_barycenter: true
+    enable_interactive_mode: true
+
     link_match_minimum_response_fine: 0.1
     link_scan_maximum_distance: 1.5
-    loop_search_maximum_distance: 3.0
+
+    # ── Loop closure ─────────────────────────────────────────────────
     do_loop_closing: true
     loop_match_minimum_chain_size: 10
+    loop_search_maximum_distance: 3.0
     loop_match_maximum_variance_coarse: 3.0
     loop_match_minimum_response_coarse: 0.35
     loop_match_minimum_response_fine: 0.45
+
+    # ── Search spaces ────────────────────────────────────────────────
     correlation_search_space_dimension: 0.5
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.1
     loop_search_space_dimension: 8.0
     loop_search_space_resolution: 0.05
     loop_search_space_smear_deviation: 0.03
+
+    # ── Penalties ────────────────────────────────────────────────────
     distance_variance_penalty: 0.5
     angle_variance_penalty: 1.0
     fine_search_angle_offset: 0.00349

@@ -39,7 +39,7 @@ setup(
             glob('config/*.yaml')),
         # maps — saved from SLAM phase
         (os.path.join('share', package_name, 'maps'),
-            glob('maps/*')),
+            glob('maps/*') or []),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

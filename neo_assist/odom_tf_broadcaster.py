@@ -29,38 +29,20 @@ class OdomTfBroadcaster(Node):
         self._latest_qz = 0.0
         self._latest_qw = 1.0
 
-        # 20 Hz timer — keeps TF cache populated between odom callbacks
-        # This prevents the "timestamp earlier than cache" error
-        self.create_timer(0.05, self.timer_callback)
-
-        self.get_logger().info("OdomTfBroadcaster ready — 20 Hz TF publishing")
-
-    def timer_callback(self):
-        """Publish TF at 20 Hz using latest known pose."""
-        t = TransformStamped()
-        t.header.stamp    = self.get_clock().now().to_msg()
-        t.header.frame_id = "odom"
-        t.child_frame_id  = "base_footprint"
-        t.transform.translation.x = self._latest_x
-        t.transform.translation.y = self._latest_y
-        t.transform.translation.z = self._latest_z
-        t.transform.rotation.x = self._latest_qx
-        t.transform.rotation.y = self._latest_qy
-        t.transform.rotation.z = self._latest_qz
-        t.transform.rotation.w = self._latest_qw
-        self.tf_broadcaster.sendTransform(t)
+        self.get_logger().info("OdomTfBroadcaster ready — TF published from real odom stamps")
 
     def odom_callback(self, msg: Odometry):
-        """Update stored pose when new odom arrives."""
-        p = msg.pose.pose.position
-        q = msg.pose.pose.orientation
-        self._latest_x  = p.x
-        self._latest_y  = p.y
-        self._latest_z  = p.z
-        self._latest_qx = q.x
-        self._latest_qy = q.y
-        self._latest_qz = q.z
-        self._latest_qw = q.w
+        """Publish TF and republish odom, both using the REAL odom timestamp
+        (not get_clock().now()) so the scan and TF stay in sync."""
+        t = TransformStamped()
+        t.header.stamp    = msg.header.stamp
+        t.header.frame_id = "odom"
+        t.child_frame_id  = "base_footprint"
+        t.transform.translation.x = msg.pose.pose.position.x
+        t.transform.translation.y = msg.pose.pose.position.y
+        t.transform.translation.z = msg.pose.pose.position.z
+        t.transform.rotation = msg.pose.pose.orientation
+        self.tf_broadcaster.sendTransform(t)
 
         # Also republish corrected odom for Nav2/SLAM
         msg.header.frame_id = "odom"

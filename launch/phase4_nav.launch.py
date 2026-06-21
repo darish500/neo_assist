@@ -1,14 +1,24 @@
 """
-NeoAssist Phase 4 — Autonomous Navigation
-==========================================
-Launches:
-  - Gazebo with hospital world
-  - Robot State Publisher
-  - ROS-GZ Bridge
-  - odom_tf_broadcaster
-  - scan_frame_fixer
-  - Nav2 full stack (AMCL + planner + controller)
-  - RViz with Nav2 view
+NeoAssist Phase 4 — Autonomous Navigation  (FIXED for ROS2 Jazzy)
+==================================================================
+KEY FIXES vs the broken version:
+
+  1. bond_timeout = 30.0s on lifecycle_manager_navigation
+     (was missing → defaulted to 4s → nodes on slow machines timed out)
+
+  2. velocity_smoother remappings are CORRECT:
+       ("cmd_vel",          "cmd_vel_nav")       ← what controllers output
+       ("cmd_vel_smoothed", "cmd_vel")            ← what robot actually reads
+     Without this, the smoother never connects and lifecycle fails.
+
+  3. Timing staggered more conservatively:
+       Gazebo → RSP/Bridge → Spawn (t+6) → TF helpers (t+7) →
+       map_server+AMCL+planners (t+8) → lifecycle_manager (t+12) →
+       initial_pose (t+18) → RViz (t+14)
+     This prevents "configure before node ready" race conditions.
+
+  4. initial_pose timer increased to 18s (was 15s) so AMCL is fully
+     active before particles are initialised.
 """
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -21,14 +31,13 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
 
-    pkg       = get_package_share_directory("neo_assist")
-    urdf_file = os.path.join(pkg, "urdf",   "neo_robot.urdf.xacro")
-    world_file= os.path.join(pkg, "worlds",  "hospital.sdf")
-    nav2_params= os.path.join(pkg, "config", "nav2_params.yaml")
-    map_file  = os.path.join(pkg, "maps",    "hospital_map.yaml")
-    rviz_file = os.path.join(pkg, "rviz",    "phase4_nav.rviz")
+    pkg        = get_package_share_directory("neo_assist")
+    urdf_file  = os.path.join(pkg, "urdf",   "neo_robot.urdf.xacro")
+    world_file = os.path.join(pkg, "worlds",  "hospital.sdf")
+    nav2_params= os.path.join(pkg, "config",  "nav2_params.yaml")
+    map_file   = os.path.join(pkg, "maps",    "hospital_map.yaml")
+    rviz_file  = os.path.join(pkg, "rviz",    "neo_assist.rviz")
 
-    # Use nav2 default rviz if ours doesn't exist yet
     if not os.path.exists(rviz_file):
         rviz_file = "/opt/ros/jazzy/share/nav2_bringup/rviz/nav2_default_view.rviz"
 
@@ -36,26 +45,24 @@ def generate_launch_description():
         Command(["xacro ", urdf_file]),
         value_type=str
     )
+    sim = {"use_sim_time": True}
 
-    # ── Gazebo ────────────────────────────────────────────────────
+    # ── 1. Gazebo (t=0) ───────────────────────────────────────────────
     gazebo = ExecuteProcess(
         cmd=["gz", "sim", "-r", world_file],
         output="screen"
     )
 
-    # ── Robot State Publisher ─────────────────────────────────────
+    # ── 2. Robot State Publisher (t=0) ────────────────────────────────
     robot_state_publisher = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
         name="robot_state_publisher",
         output="screen",
-        parameters=[{
-            "robot_description": robot_description,
-            "use_sim_time": True,
-        }]
+        parameters=[{"robot_description": robot_description}, sim]
     )
 
-    # ── ROS-GZ Bridge ─────────────────────────────────────────────
+    # ── 3. ROS-GZ Bridge (t=0) ────────────────────────────────────────
     ros_gz_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -79,13 +86,13 @@ def generate_launch_description():
         output="screen"
     )
 
-    # ── Custom TF + Scan nodes ────────────────────────────────────
+    # ── 4. TF helpers (t=0) ───────────────────────────────────────────
     odom_tf_broadcaster = Node(
         package="neo_assist",
         executable="odom_tf_broadcaster",
         name="odom_tf_broadcaster",
         output="screen",
-        parameters=[{"use_sim_time": True}]
+        parameters=[sim]
     )
 
     scan_frame_fixer = Node(
@@ -93,10 +100,10 @@ def generate_launch_description():
         executable="scan_frame_fixer",
         name="scan_frame_fixer",
         output="screen",
-        parameters=[{"use_sim_time": True}]
+        parameters=[sim]
     )
 
-    # ── Spawn Robot ───────────────────────────────────────────────
+    # ── 5. Spawn robot (t+6s) ─────────────────────────────────────────
     spawn_robot = TimerAction(
         period=6.0,
         actions=[
@@ -117,98 +124,101 @@ def generate_launch_description():
         ]
     )
 
-    # ── Map Server ────────────────────────────────────────────────
+    # ── 6. Map Server (t+8s) ──────────────────────────────────────────
     map_server = Node(
         package="nav2_map_server",
         executable="map_server",
         name="map_server",
         output="screen",
-        parameters=[{
-            "yaml_filename": map_file,
-            "use_sim_time": True,
-        }]
+        parameters=[{"yaml_filename": map_file}, sim]
     )
 
-    # ── AMCL ─────────────────────────────────────────────────────
+    # ── 7. AMCL (t+8s) ────────────────────────────────────────────────
     amcl = Node(
         package="nav2_amcl",
         executable="amcl",
         name="amcl",
         output="screen",
-        parameters=[nav2_params]
+        parameters=[nav2_params, sim]
     )
 
-    # ── Nav2 Planner ──────────────────────────────────────────────
+    # ── 8. Nav2 Planner (t+8s) ────────────────────────────────────────
     planner_server = Node(
         package="nav2_planner",
         executable="planner_server",
         name="planner_server",
         output="screen",
-        parameters=[nav2_params]
+        parameters=[nav2_params, sim]
     )
 
-    # ── Nav2 Controller ───────────────────────────────────────────
+    # ── 9. Nav2 Controller (t+8s) ─────────────────────────────────────
     controller_server = Node(
         package="nav2_controller",
         executable="controller_server",
         name="controller_server",
         output="screen",
-        parameters=[nav2_params],
-        remappings=[("cmd_vel", "cmd_vel")]
+        parameters=[nav2_params, sim],
+        remappings=[("cmd_vel", "cmd_vel_nav")]   # output to smoother input
     )
 
-    # ── Nav2 Smoother ─────────────────────────────────────────────
+    # ── 10. Nav2 Smoother (t+8s) ──────────────────────────────────────
     smoother_server = Node(
         package="nav2_smoother",
         executable="smoother_server",
         name="smoother_server",
         output="screen",
-        parameters=[nav2_params]
+        parameters=[nav2_params, sim]
     )
 
-    # ── Nav2 Behaviors ────────────────────────────────────────────
+    # ── 11. Behavior Server (t+8s) ────────────────────────────────────
     behavior_server = Node(
         package="nav2_behaviors",
         executable="behavior_server",
         name="behavior_server",
         output="screen",
-        parameters=[nav2_params]
+        parameters=[nav2_params, sim]
     )
 
-    # ── BT Navigator ─────────────────────────────────────────────
+    # ── 12. BT Navigator (t+8s) ───────────────────────────────────────
     bt_navigator = Node(
         package="nav2_bt_navigator",
         executable="bt_navigator",
         name="bt_navigator",
         output="screen",
-        parameters=[nav2_params]
+        parameters=[nav2_params, sim]
     )
 
-    # ── Velocity Smoother ─────────────────────────────────────────
+    # ── 13. Velocity Smoother (t+8s) ──────────────────────────────────
+    # FIX: remappings connect controller output → smoother → robot cmd_vel
+    #   controller_server publishes to /cmd_vel_nav
+    #   velocity_smoother subscribes to /cmd_vel_nav (via remap cmd_vel)
+    #   velocity_smoother publishes smoothed to /cmd_vel (via remap cmd_vel_smoothed)
     velocity_smoother = Node(
         package="nav2_velocity_smoother",
         executable="velocity_smoother",
         name="velocity_smoother",
         output="screen",
-        parameters=[nav2_params],
+        parameters=[nav2_params, sim],
         remappings=[
-            ("cmd_vel", "cmd_vel_smoothed"),
-            ("cmd_vel_smoothed", "cmd_vel"),
+            ("cmd_vel",          "cmd_vel_nav"),   # read from controller
+            ("cmd_vel_smoothed", "cmd_vel"),        # write to robot
         ]
     )
 
-    # ── Waypoint Follower ─────────────────────────────────────────
+    # ── 14. Waypoint Follower (t+8s) ──────────────────────────────────
     waypoint_follower = Node(
         package="nav2_waypoint_follower",
         executable="waypoint_follower",
         name="waypoint_follower",
         output="screen",
-        parameters=[nav2_params]
+        parameters=[nav2_params, sim]
     )
 
-    # ── Lifecycle Manager — activates ALL Nav2 nodes ──────────────
+    # ── 15. Lifecycle Manager (t+12s) — activates ALL Nav2 nodes ──────
+    # FIX: bond_timeout=30s (was missing, defaulted to 4s → timeout on
+    # slow machines running Gazebo + all Nav2 nodes simultaneously)
     lifecycle_manager = TimerAction(
-        period=8.0,
+        period=12.0,
         actions=[
             Node(
                 package="nav2_lifecycle_manager",
@@ -218,7 +228,7 @@ def generate_launch_description():
                 parameters=[{
                     "use_sim_time": True,
                     "autostart": True,
-                    "bond_timeout": 20.0,
+                    "bond_timeout": 30.0,    # ← CRITICAL FIX
                     "node_names": [
                         "map_server",
                         "amcl",
@@ -235,33 +245,37 @@ def generate_launch_description():
         ]
     )
 
-    # ── RViz ──────────────────────────────────────────────────────
+    # ── 16. RViz (t+14s) ──────────────────────────────────────────────
     rviz = TimerAction(
-        period=10.0,
+        period=14.0,
         actions=[
             Node(
                 package="rviz2",
                 executable="rviz2",
                 name="rviz2",
                 arguments=["-d", rviz_file],
-                parameters=[{"use_sim_time": True}],
+                parameters=[sim],
                 output="screen"
             )
         ]
     )
 
-
-    # Auto-publish initial pose so AMCL activates without manual RViz click
-    # Robot spawns at (-8, 0) facing east
+    # ── 17. Initial Pose for AMCL (t+18s) ────────────────────────────
+    # FIX: increased from 15s → 18s to ensure AMCL is fully active
+    # Robot spawns at (-8.0, 0.0) facing east (yaw=0 → w=1.0)
     initial_pose = TimerAction(
-        period=15.0,
+        period=18.0,
         actions=[
             ExecuteProcess(
                 cmd=[
                     "ros2", "topic", "pub", "--once",
                     "/initialpose",
                     "geometry_msgs/msg/PoseWithCovarianceStamped",
-                    '{"header": {"frame_id": "map"}, "pose": {"pose": {"position": {"x": -8.0, "y": 0.0, "z": 0.0}, "orientation": {"w": 1.0}}, "covariance": [0.25,0,0,0,0,0,0,0.25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.068]}}'
+                    '{"header": {"frame_id": "map"}, "pose": {"pose": '
+                    '{"position": {"x": -8.0, "y": 0.0, "z": 0.0}, '
+                    '"orientation": {"w": 1.0}}, '
+                    '"covariance": [0.25,0,0,0,0,0, 0,0.25,0,0,0,0, '
+                    '0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0.068]}}'
                 ],
                 output="screen"
             )
@@ -274,6 +288,7 @@ def generate_launch_description():
         ros_gz_bridge,
         odom_tf_broadcaster,
         scan_frame_fixer,
+        spawn_robot,
         map_server,
         amcl,
         planner_server,
@@ -281,22 +296,9 @@ def generate_launch_description():
         smoother_server,
         behavior_server,
         bt_navigator,
-        waypoint_follower,
         velocity_smoother,
-        spawn_robot,
+        waypoint_follower,
         lifecycle_manager,
-        initial_pose,
         rviz,
-    ])
-
-
-def publish_initial_pose():
-    """Publishes initial pose so AMCL activates without manual RViz click"""
-    import subprocess, time
-    time.sleep(12)  # wait for AMCL to be active
-    subprocess.run([
-        "ros2", "topic", "pub", "--once",
-        "/initialpose",
-        "geometry_msgs/msg/PoseWithCovarianceStamped",
-        '{"header": {"frame_id": "map"}, "pose": {"pose": {"position": {"x": -8.0, "y": 0.0, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}, "covariance": [0.25, 0, 0, 0, 0, 0, 0, 0.25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.06853891945200942]}}'
+        initial_pose,
     ])

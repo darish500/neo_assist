@@ -38,9 +38,10 @@ class ScanFrameFixer(Node):
     def scan_callback(self, msg: LaserScan):
         # Fix frame_id so TF lookup finds lidar_link
         msg.header.frame_id = "lidar_link"
-        # Re-stamp with current sim time so TF cache always has
-        # a transform at exactly this timestamp
-        msg.header.stamp = self.get_clock().now().to_msg()
+        # NOTE: keep Gazebo's real timestamp here. Rewriting it to "now"
+        # desyncs the scan from the TF pose at capture time, which corrupts
+        # costmap obstacle placement during rotation — this was the root
+        # cause of the "turns a bit then collides" bug.
         self.pub.publish(msg)
 
 
